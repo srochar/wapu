@@ -1,0 +1,1 @@
+from .dirdoc import DirdocWrapper
