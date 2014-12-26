@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from wapu.utils import auth_required_decorator
+from wapu.utils import auth_required_decorator, read_nota, read_ponderacion
 from wapu.defaults import USER_AGENT
 from wapu.errors import AuthException
 from bs4 import BeautifulSoup
@@ -37,7 +37,7 @@ class DirdocWrapper(object):
         data = {'rut': username, 'password': password, 'tipo': 0}
         req = requests.post(URLS['login'], data, headers=self.__headers__)
 
-        if AUTH_FAILED_MSG in req.text:
+        if 'Bienvenido' not in req.text:
             raise AuthException('Oops, fallamos en el login inicial, probablemente quieras llamar a login() nuevamente')
         self.__cookies__ = req.cookies
 
@@ -91,6 +91,43 @@ class DirdocWrapper(object):
         if 'No registra incripci&oacute;n aceptada en el curso seleccionado' in req.text:
             raise UserWarning('Según dirdoc no tienes registrado este curso, checkea el id!')
 
+        data = {}
+        evaluaciones = {}
+        ponderaciones = []
+        notas = []
+        examenes = []
         dom = BeautifulSoup(req.text)
 
-        raise UserWarning('Luego seguiré implementando esto...')
+        info_curso = [s.text for s in dom.select('td')[2:5]] # Estan el nombre de la asignatura, seccion y docente
+
+        # Info del curso
+
+        data['seccion'] = int(info_curso[1])
+        data['docente'] = info_curso[-1]
+        data['codigo'], data['nombre'] = info_curso[0].replace('(', '').split(')')
+
+        # Ahora vamos por las ponderaciones y notas
+        th_ponderaciones = dom.select('tr:nth-of-type(5) th')
+        th_notas = dom.select('tr:nth-of-type(6) th')
+
+        for (i, (th_ponderacion, th_nota)) in enumerate(zip(th_ponderaciones, th_notas)):
+            nota = read_nota(th_nota.text)
+
+            if 'Nota Prest' in th_ponderacion.text:
+                i += 1 # i ahora esta sobre la columna de examenes
+                evaluaciones['nota_presentacion'] = nota
+                break
+
+            ponderacion = read_ponderacion(th_ponderacion.text)
+            ponderaciones.append(ponderacion)
+            notas.append(nota)
+
+        for k in range(i, i + 2): # j: examen {n} + 1; k = indice columnas de examenes
+            nota = read_nota(th_notas[k].text)
+            examenes.append(nota)
+
+        evaluaciones['examenes'] = examenes
+        evaluaciones['parciales'] = {'notas': notas, 'ponderaciones': ponderaciones}
+        data['evaluaciones'] = evaluaciones
+
+        return ujson.dumps(data, ensure_ascii=False)
