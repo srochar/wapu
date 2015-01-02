@@ -4,6 +4,7 @@ from functools import wraps
 import requests
 from .errors import AuthException
 import re
+from datetime import datetime
 
 
 def auth_required_decorator(url, msg):
@@ -35,3 +36,15 @@ def read_ponderacion(s):
     except IndexError:
         ponderacion = None
     return ponderacion
+
+def read_fecha(s):
+    s = s.lstrip().rstrip()
+    return datetime.strptime(s, '%d/%m/%Y')
+
+def read_monto(s):
+    s = s.lstrip().rstrip() # Limpiar la basura de ambos extremos del string
+    try:
+        monto = float(re.findall('\d+.\d+', s)[0].replace('.', ''))
+    except IndexError: # TODO: Agregar logging a estas excepciones
+        monto = None
+    return monto
