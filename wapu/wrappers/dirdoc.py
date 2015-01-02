@@ -3,6 +3,7 @@
 from wapu.utils import auth_required_decorator, read_nota, read_ponderacion
 from wapu.defaults import USER_AGENT
 from wapu.errors import AuthException
+from wapu.wrappers.base import BaseWrapper
 from bs4 import BeautifulSoup
 from exceptions import NotImplementedError, UserWarning
 import requests
@@ -22,16 +23,11 @@ URLS = {
     'curso': 'http://dirdoc.utem.cl/curricular/notas/{0}'
 }
 
-# Decorar para checkear validez de credenciales, mira la url en el primer parámetro, si el body
+# Decorador para checkear validez de credenciales, mira la url en el primer parámetro, si el body
 # contiene el mensaje del segundo parámetro estamos mal
 requires_auth = auth_required_decorator(URLS['contacto'], AUTH_FAILED_MSG)
 
-class DirdocWrapper(object):
-
-    def __init__(self, username, password, user_agent=USER_AGENT): # No haré persistencia de las credenciales
-        self.__headers__ = {'User-Agent': USER_AGENT}
-        #self.__cache__ = {}
-        self.login(username, password)
+class DirdocWrapper(BaseWrapper):
 
     def login(self, username, password):
         data = {'rut': username, 'password': password, 'tipo': 0}
@@ -42,7 +38,7 @@ class DirdocWrapper(object):
         self.__cookies__ = req.cookies
 
     @requires_auth
-    def estudiante(self, **kwargs):
+    def estudiante(self):
         req = requests.get(URLS['situacion_arancelaria'], headers=self.__headers__, cookies=self.__cookies__)
 
         dom = BeautifulSoup(req.text)
