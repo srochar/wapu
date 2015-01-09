@@ -27,6 +27,8 @@ def read_nota(s):
         nota = float(re.findall('\d+,\d+', s)[0].replace(',', '.'))
     except IndexError:
         nota = None
+    except TypeError: #puede ocurrir esta excepción también
+        nota = None
     return nota
 
 def read_ponderacion(s):
@@ -48,3 +50,11 @@ def read_monto(s):
     except IndexError: # TODO: Agregar logging a estas excepciones
         monto = None
     return monto
+
+#intenta parsear un texto a enterio, si no puede, retorna None
+def intText(s):
+    try:
+        s = int(s)
+    except:
+        s = None
+    return s

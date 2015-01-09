@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from wapu.utils import auth_required_decorator, read_nota, read_ponderacion
+from wapu.utils import auth_required_decorator, read_nota, read_ponderacion, intText
 from wapu.defaults import USER_AGENT
 from wapu.errors import AuthException
 from wapu.wrappers.base import BaseWrapper
@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from exceptions import NotImplementedError, UserWarning
 import requests
 import ujson
+from urlparse import urlparse
 
 
 # Cuando no estas autenticado dirdoc dice esto
@@ -20,7 +21,9 @@ URLS = {
     'situacion_arancelaria': 'http://dirdoc.utem.cl/alumnos/certificado_aranceles.php',
     'notas': 'http://dirdoc.utem.cl/curricular/notas',
     'notas_semestre_previo': 'http://dirdoc.utem.cl/curricular/notas_anterior',
-    'curso': 'http://dirdoc.utem.cl/curricular/notas/{0}'
+    'curso': 'http://dirdoc.utem.cl/curricular/notas/{0}',
+    'carreras': 'http://dirdoc.utem.cl/curricular/', #muestra la información de las carreras de un estudiante
+    'avance_malla': 'http://dirdoc.utem.cl/curricular/avance?{0}',
 }
 
 # Decorador para checkear validez de credenciales, mira la url en el primer parámetro, si el body
@@ -49,8 +52,58 @@ class DirdocWrapper(BaseWrapper):
         return ujson.dumps(dict(zip(heads, data)), ensure_ascii=False)
 
     @requires_auth
-    def avance_malla(self, num=0): # Donde num es un indice del listado mostrado en el avance de malla
-        raise NotImplementedError('Oopsie! aún no hago esto')
+    def carreras(self):
+        carreras = []
+        req = requests.get(URLS['carreras'],headers=self.__headers__,cookies=self.__cookies__)
+        dom = BeautifulSoup(req.text)
+        row_carreras = dom.select('table:nth-of-type(2) tr')[1:] #todas las carreras del estudiante
+        for row in row_carreras:
+            row = row.select('td') #informacion de la carrera; nombre,link,estado,semestre
+            href = row[0].a.get('href')
+            data_c = dict(
+                nombre = row[0].text,
+                estado = row[1].text,
+                sInicio = row[2].text,
+                sTermino = row[3].text,
+                link = urlparse(href).query
+            )
+
+            carreras.append(data_c)
+
+        return ujson.dumps(carreras, ensure_ascii = False )
+
+    @requires_auth
+    def avance_malla(self, parm): # Donde num es un indice del listado mostrado en el avance de malla
+        malla = []
+        url = URLS['avance_malla'].format(parm)
+        req = requests.get(url,headers=self.__headers__,cookies=self.__cookies__)
+        dom = BeautifulSoup(req.text)
+        #heads = ['Nivel', 'Asignatura', 'Tipo', 'Op', 'Estado', 'Secc', 'Nota']
+
+        row_asigna = dom.select('table:nth-of-type(3) tr')[1:]#todas las asignaturas
+        for row in row_asigna:
+            data = row.select('td')
+            if len(data) is 7: #hay un td solo (que sirve para separar los semestre <td> </hr></td>
+                #data = [d.text for d in data]
+                #data = dict(zip(heads,data))
+
+                if read_nota(data[6].text) is None: #la nota no siempre es un float, puede ser 'A,RI,...'
+                    nota = data[6].text
+                else:
+                    nota = read_nota(data[6].text)
+
+                data = dict(
+                    nivel = intText(data[0].text),
+                    asignatura = data[1].text,
+                    tipo = data[2].text,
+                    op = intText(data[3].text),
+                    estado = data[4].text,
+                    seccion = intText(data[5].text),
+                    nota = nota
+                )
+                malla.append(data)
+
+        return ujson.dumps(malla, ensure_ascii = False)
 
     @requires_auth
     def horario(self): # Solo puedo obtener el horario del semestre _actual_ damn you dirdoc
