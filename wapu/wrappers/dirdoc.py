@@ -63,8 +63,8 @@ class DirdocWrapper(BaseWrapper):
             data_c = dict(
                 nombre = row[0].text,
                 estado = row[1].text,
-                sInicio = row[2].text,
-                sTermino = row[3].text,
+                semestre_inicio = row[2].text,
+                semestre_termino = row[3].text,
                 link = urlparse(href).query
             )
 
